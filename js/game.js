@@ -55,8 +55,6 @@
     } catch (e) { /* no-op */ }
   }
 
-  let fartPool = null; // array of HTMLAudioElement templates
-  let lastFartIdx = -1;
 
   function ensureFartAudio() {
     if (fartPool && fartPool.length) return fartPool;
