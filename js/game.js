@@ -10,10 +10,12 @@
   const GROUND_Y = -8;          // pipe spawn clamp
   const KILL_Y = -24;             // fall death — generous room below play band
   const CEILING_Y = 8;          // world Y ceiling
-  const PIPE_INTERVAL = 1.55;   // faster pipe cadence
+  const PIPE_INTERVAL = 1.55;   // kept for difficulty math / legacy
   const PIPE_GAP = 3.6;         // gap height in world units
   const PLAY_LENGTH = 100;      // total scroll distance before pipes wrap
-  const SPAWN_X = 11;           // spawn fully on-screen (camera sees ~x 0..12)
+  const SPAWN_X = 17;           // far-right of typical FOV (~halfW~13-18); generate at/near edge
+  const DESPAWN_X = -10;        // remove after left of view
+  const PIPE_SPACING = 6.5;     // world units between pipe columns (fills screen)
 
   // ── Near constants ───────────────────────────────────────
   const TARGET_FPS = 30;
@@ -369,6 +371,7 @@
     sfxFlap();
     if (state === STATE.GAMEOVER) {
       reset();
+      seedPipes();
       state = STATE.PLAY;
       bird.vy = FLAP_VEL;
       flapAnimT = 0.2;
@@ -426,7 +429,7 @@
       }
 
       // Remove pipes that scroll off screen
-      if (p.x < -PLAY_LENGTH / 2) {
+      if (p.x < DESPAWN_X) {
         scene.remove(p.mesh);
         p.mesh.traverse(child => {
           if (child.geometry) child.geometry.dispose();
@@ -436,12 +439,8 @@
       }
     }
 
-    // Spawn new pipes
-    pipeSpawnTimer -= dt;
-    if (pipeSpawnTimer <= 0 && bird.x < PLAY_LENGTH / 2 - 5) {
-      spawnPipe();
-      pipeSpawnTimer = Math.max(0.85, PIPE_INTERVAL - score * 0.04);
-    }
+    // Spawn new pipes — ensure enough fill the view
+    ensurePipesAhead();
 
     // Collision detection — AABB sphere vs box
     checkCollisions();
@@ -492,7 +491,9 @@
     updateOverlay();
   }
 
-  function spawnPipe() {
+  function spawnPipe(atX) {
+    const x = (typeof atX === 'number') ? atX : SPAWN_X;
+
     // Random gap center Y between GROUND_Y + 2 and CEILING_Y - 2
     const minY = GROUND_Y + 3;
     const maxY = CEILING_Y - 3;
@@ -504,11 +505,12 @@
     if (gapCenterY - gap / 2 < GROUND_Y + 0.5) gapCenterY = GROUND_Y + 0.5 + gap / 2;
 
     const mesh = createPipeMesh(gap);
-    mesh.position.set(SPAWN_X, gapCenterY, 0);
+    mesh.position.set(x, gapCenterY, 0);
+    if (!scene) return;
     scene.add(mesh);
 
     pipes.push({
-      x: SPAWN_X,
+      x: x,
       y: gapCenterY,
       gapTop: gapCenterY + gap / 2,
       gapBot: gapCenterY - gap / 2,
@@ -518,6 +520,28 @@
       mesh: mesh,
     });
   }
+
+  function ensurePipesAhead() {
+    let maxX = -1e9;
+    for (let i = 0; i < pipes.length; i++) {
+      if (pipes[i].x > maxX) maxX = pipes[i].x;
+    }
+    if (pipes.length === 0) maxX = bird.x + 3;
+    // Tighter spacing as score rises, but never tighter than 5
+    const spacing = Math.max(5.0, PIPE_SPACING - score * 0.04);
+    while (maxX < SPAWN_X) {
+      maxX += spacing;
+      spawnPipe(maxX);
+    }
+  }
+
+  function seedPipes() {
+    const spacing = PIPE_SPACING;
+    for (let x = 4; x <= SPAWN_X + 0.01; x += spacing) {
+      spawnPipe(x);
+    }
+  }
+
   function checkCollisions() {
     const bx = bird.x;
     const by = bird.y;
@@ -672,6 +696,8 @@
     puffPoints = new THREE.Points(geo, mat);
     puffData = { pos: pos, life: life, vel: new Float32Array(PUFF_N * 3) };
     scene.add(puffPoints);
+
+    seedPipes();
   }
 
   function onResize() {
