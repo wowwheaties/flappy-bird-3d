@@ -50,7 +50,47 @@
     } catch (e) { /* no-op */ }
   }
 
-  function sfxFlap()   { if (!muted) playTone(600, 0.08, 'sine', 0.25); }
+  function sfxFart() {
+    if (muted) return;
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    try {
+      const t0 = ctx.currentTime;
+      // Low descending "toot" (cute, not gross)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filt = ctx.createBiquadFilter();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(140 + Math.random() * 40, t0);
+      osc.frequency.exponentialRampToValueAtTime(55, t0 + 0.18);
+      filt.type = 'lowpass';
+      filt.frequency.setValueAtTime(420, t0);
+      filt.frequency.exponentialRampToValueAtTime(90, t0 + 0.2);
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.22, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28);
+      osc.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
+      osc.start(t0); osc.stop(t0 + 0.3);
+
+      // Soft noise puff layer
+      const nLen = Math.floor(ctx.sampleRate * 0.2);
+      const buf = ctx.createBuffer(1, nLen, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < nLen; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / nLen);
+      const noise = ctx.createBufferSource();
+      noise.buffer = buf;
+      const ng = ctx.createGain();
+      const nf = ctx.createBiquadFilter();
+      nf.type = 'bandpass';
+      nf.frequency.value = 180;
+      nf.Q.value = 0.7;
+      ng.gain.setValueAtTime(0.12, t0);
+      ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.2);
+      noise.connect(nf); nf.connect(ng); ng.connect(ctx.destination);
+      noise.start(t0); noise.stop(t0 + 0.22);
+    } catch (e) { /* no-op */ }
+  }
+  function sfxFlap()   { sfxFart(); }
   function sfxScore()  { if (!muted) playTone(900, 0.12, 'square', 0.2); }
   function sfxDie()    { if (!muted) playTone(200, 0.3, 'sawtooth', 0.3); }
 
@@ -348,18 +388,18 @@
     bird.vy = FLAP_VEL; // upward impulse
     flapAnimT = 0.2;
 
-    // ── M10: activate puff particles on flap ───────────────────
+    // ── M10: fart puff particles on flap (behind bird rear) ───────────────
     if (puffData) {
       let spawned = 0;
-      for (let i = 0; i < PUFF_N && spawned < 8; i++) {
+      for (let i = 0; i < PUFF_N && spawned < 12; i++) {
         if (puffData.life[i] <= 0) {
-          puffData.life[i] = 0.35;
-          puffData.pos[i * 3] = bird.x - 0.3;
-          puffData.pos[i * 3 + 1] = bird.y;
-          puffData.pos[i * 3 + 2] = bird.z;
-          puffData.vel[i * 3] = -1 - Math.random();
-          puffData.vel[i * 3 + 1] = (Math.random() - 0.5) * 2;
-          puffData.vel[i * 3 + 2] = (Math.random() - 0.5);
+          puffData.life[i] = 0.4 + Math.random() * 0.2;
+          puffData.pos[i * 3] = bird.x - 0.55 + (Math.random() - 0.5) * 0.15;
+          puffData.pos[i * 3 + 1] = bird.y - 0.2 + (Math.random() - 0.5) * 0.1;
+          puffData.pos[i * 3 + 2] = bird.z + (Math.random() - 0.5) * 0.2;
+          puffData.vel[i * 3] = -2.2 - Math.random() * 1.8;
+          puffData.vel[i * 3 + 1] = -0.8 - Math.random() * 1.2;
+          puffData.vel[i * 3 + 2] = (Math.random() - 0.5) * 1.2;
           spawned++;
         }
       }
@@ -636,7 +676,7 @@
     const pos = new Float32Array(PUFF_N * 3);
     const life = new Float32Array(PUFF_N); // 0 = dead
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    const mat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.18, transparent: true, opacity: 0.45, depthWrite: false });
+    const mat = new THREE.PointsMaterial({ color: 0xc4b454, size: 0.35, transparent: true, opacity: 0.75, depthWrite: false });
     puffPoints = new THREE.Points(geo, mat);
     puffData = { pos: pos, life: life, vel: new Float32Array(PUFF_N * 3) };
     scene.add(puffPoints);
