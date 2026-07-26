@@ -16,6 +16,7 @@
   const SPAWN_X = 17;           // far-right of typical FOV (~halfW~13-18); generate at/near edge
   const DESPAWN_X = -10;        // remove after left of view
   const PIPE_SPACING = 6.5;     // world units between pipe columns (fills screen)
+  const FIRST_PIPE_X = 12;       // first column well ahead of bird (x=0)
 
   // ── Near constants ───────────────────────────────────────
   const TARGET_FPS = 30;
@@ -491,13 +492,19 @@
     updateOverlay();
   }
 
-  function spawnPipe(atX) {
+  function spawnPipe(atX, fairGap) {
     const x = (typeof atX === 'number') ? atX : SPAWN_X;
 
     // Random gap center Y between GROUND_Y + 2 and CEILING_Y - 2
     const minY = GROUND_Y + 3;
     const maxY = CEILING_Y - 3;
-    let gapCenterY = minY + Math.random() * (maxY - minY);
+    let gapCenterY;
+    if (fairGap) {
+      // Center gap near flight start (y≈0) so first pipes are passable
+      gapCenterY = (Math.random() - 0.5) * 1.2; // ~-0.6 .. 0.6
+    } else {
+      gapCenterY = minY + Math.random() * (maxY - minY);
+    }
 
     // Clamp so both edges stay in bounds with dynamic gap
     const gap = currentGap();
@@ -526,7 +533,7 @@
     for (let i = 0; i < pipes.length; i++) {
       if (pipes[i].x > maxX) maxX = pipes[i].x;
     }
-    if (pipes.length === 0) maxX = bird.x + 3;
+    if (pipes.length === 0) maxX = bird.x + FIRST_PIPE_X - PIPE_SPACING;
     // Tighter spacing as score rises, but never tighter than 5
     const spacing = Math.max(5.0, PIPE_SPACING - score * 0.04);
     while (maxX < SPAWN_X) {
@@ -537,8 +544,10 @@
 
   function seedPipes() {
     const spacing = PIPE_SPACING;
-    for (let x = 4; x <= SPAWN_X + 0.01; x += spacing) {
-      spawnPipe(x);
+    let i = 0;
+    for (let x = FIRST_PIPE_X; x <= SPAWN_X + 0.01; x += spacing) {
+      spawnPipe(x, i < 2); // first two columns fair / centered
+      i++;
     }
   }
 
