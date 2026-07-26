@@ -25,3 +25,6 @@ Or open `index.html` via any static file server.
 ## License
 
 MIT
+
+## Sound credits
+- Flap/fart SFX: Mixkit “Cartoon fart sound” (Mixkit Free Sound Effects License)

@@ -25,6 +25,7 @@
   let bestScore = parseInt(localStorage.getItem('flappy3d_best') || '0', 10);
   let muted = localStorage.getItem('flappy3d_muted') === '1';
   let audioCtx = null;            // Web Audio API context
+  let fartBuf = null;               // HTMLAudioElement template for real fart SFX
 
   function getAudioContext() {
     if (!audioCtx) {
@@ -50,45 +51,36 @@
     } catch (e) { /* no-op */ }
   }
 
+  function ensureFartAudio() {
+    if (fartBuf) return fartBuf;
+    try {
+      const a = new Audio();
+      // prefer mp3; ogg if browser likes it
+      if (a.canPlayType('audio/mpeg')) a.src = 'assets/sfx/cute-fart.mp3';
+      else a.src = 'assets/sfx/cute-fart.ogg';
+      a.preload = 'auto';
+      a.volume = 0.7;
+      fartBuf = a;
+    } catch (e) { fartBuf = null; }
+    return fartBuf;
+  }
+
   function sfxFart() {
     if (muted) return;
-    const ctx = getAudioContext();
-    if (!ctx) return;
+    // Real sample (overlap-safe via clone)
     try {
-      const t0 = ctx.currentTime;
-      // Low descending "toot" (cute, not gross)
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const filt = ctx.createBiquadFilter();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(140 + Math.random() * 40, t0);
-      osc.frequency.exponentialRampToValueAtTime(55, t0 + 0.18);
-      filt.type = 'lowpass';
-      filt.frequency.setValueAtTime(420, t0);
-      filt.frequency.exponentialRampToValueAtTime(90, t0 + 0.2);
-      gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.exponentialRampToValueAtTime(0.22, t0 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28);
-      osc.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
-      osc.start(t0); osc.stop(t0 + 0.3);
-
-      // Soft noise puff layer
-      const nLen = Math.floor(ctx.sampleRate * 0.2);
-      const buf = ctx.createBuffer(1, nLen, ctx.sampleRate);
-      const d = buf.getChannelData(0);
-      for (let i = 0; i < nLen; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / nLen);
-      const noise = ctx.createBufferSource();
-      noise.buffer = buf;
-      const ng = ctx.createGain();
-      const nf = ctx.createBiquadFilter();
-      nf.type = 'bandpass';
-      nf.frequency.value = 180;
-      nf.Q.value = 0.7;
-      ng.gain.setValueAtTime(0.12, t0);
-      ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.2);
-      noise.connect(nf); nf.connect(ng); ng.connect(ctx.destination);
-      noise.start(t0); noise.stop(t0 + 0.22);
-    } catch (e) { /* no-op */ }
+      const base = ensureFartAudio();
+      if (base && base.src) {
+        const a = base.cloneNode();
+        a.volume = 0.65 + Math.random() * 0.15;
+        a.playbackRate = 0.95 + Math.random() * 0.15; // slight cute variation
+        const p = a.play();
+        if (p && p.catch) p.catch(function () { /* autoplay block until gesture */ });
+        return;
+      }
+    } catch (e) { /* fall through */ }
+    // Fallback synthetic if file missing
+    playTone(120, 0.15, 'sawtooth', 0.2);
   }
   function sfxFlap()   { sfxFart(); }
   function sfxScore()  { if (!muted) playTone(900, 0.12, 'square', 0.2); }
@@ -757,6 +749,7 @@
       overlayEl = overlayElement;
       testOverlayEl = testOverlay;
       reset();
+      ensureFartAudio(); // preload real fart SFX on startup
       bird.mesh = null; // will be created in initScene
       initScene();
       onResize();
