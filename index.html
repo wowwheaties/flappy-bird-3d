@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Flappy Bird 3D</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { overflow: hidden; background: #000; font-family: Arial, sans-serif; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+canvas { display: block; width: 100vw; height: 100vh; }
+
+#score {
+  position: absolute; top: max(20px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  font-size: 48px; color: #fff; text-shadow: 2px 2px 4px rgba(0,0,0,.7);
+  z-index: 10; pointer-events: none; font-weight: bold;
+}
+
+#best {
+  position: absolute; top: max(72px, calc(env(safe-area-inset-top) + 52px)); left: 50%; transform: translateX(-50%);
+  font-size: 24px; color: #ccc; text-shadow: 2px 2px 4px rgba(0,0,0,.7);
+  z-index: 10; pointer-events: none; font-weight: bold;
+}
+
+#combo {
+  position: absolute; top: max(110px, calc(env(safe-area-inset-top) + 90px)); left: 50%; transform: translateX(-50%);
+  font-size: 20px; color: #ffd700; text-shadow: 2px 2px 4px rgba(0,0,0,.7);
+  z-index: 10; pointer-events: none; font-weight: bold;
+}
+
+#score.pop {
+  animation: scorePop 0.25s ease-out;
+}
+
+@keyframes scorePop {
+  0% { transform: translateX(-50%) scale(1); }
+  40% { transform: translateX(-50%) scale(1.25); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+
+#mute {
+  position: absolute; bottom: max(12px, env(safe-area-inset-bottom)); left: 12px;
+  font-size: 14px; color: #ddd; text-shadow: 1px 1px 2px rgba(0,0,0,.7);
+  z-index: 10; pointer-events: none;
+}
+
+#overlay {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  font-size: 36px; color: #fff; text-shadow: 2px 2px 4px rgba(0,0,0,.7);
+  z-index: 10; pointer-events: none; text-align: center; white-space: pre-line;
+}
+
+#test-overlay {
+  position: absolute; top: 8px; right: 8px; padding: 6px 12px;
+  font-size: 14px; color: #0f0; background: rgba(0,0,0,.35);
+  z-index: 100; pointer-events: none; white-space: nowrap;
+}
+
+#test-overlay.fail { color: #f44; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="score">0</div>
+<div id="best"></div>
+<div id="combo"></div>
+<div id="mute">Sound: On</div>
+<div id="overlay">Press SPACE or tap to start</div>
+<div id="test-overlay" style="display:none;"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="js/game.js"></script>
+<script>
+// Boot the game when DOM is ready
+window.addEventListener('DOMContentLoaded', () => {
+  const canvas = document.getElementById('c');
+  const scoreEl = document.getElementById('score');
+  const overlayEl = document.getElementById('overlay');
+  const testOverlay = document.getElementById('test-overlay');
+
+  // Check selftest mode
+  const params = new URLSearchParams(window.location.search);
+  const isSelftest = params.has('selftest') || params.get('selftest') === '1';
+
+  const game = window.__flappy3d;
+  const bestEl = document.getElementById('best');
+  // Load best from localStorage on init
+  if (bestEl) {
+    const b = parseInt(localStorage.getItem('flappy3d_best') || '0', 10);
+    bestEl.textContent = 'Best: ' + b;
+  }
+  game.init(canvas, scoreEl, overlayEl, testOverlay);
+
+      // Set mute text from localStorage
+      const muteEl = document.getElementById('mute');
+      if (muteEl) muteEl.textContent = 'Sound: ' + (localStorage.getItem('flappy3d_muted') === '1' ? 'Off' : 'On');
+
+  // Input handlers
+  function onInput() {
+    if (isSelftest) return; // selftest drives its own input
+    game.flap();
+  }
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); onInput(); }
+    if (e.code === 'KeyM') { e.preventDefault(); game._toggleMute(); }
+    if (e.code === 'KeyP') { e.preventDefault(); game._togglePause(); }
+  });
+  canvas.addEventListener('click', onInput);
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); onInput(); }, { passive: false });
+
+  // Start the game loop
+  game.start();
+
+  // Run selftest if requested
+  if (isSelftest) {
+    testOverlay.style.display = 'block';
+    window.selftest_M1(game, testOverlay).then(m1 => {
+      if (!m1) { overlayEl.textContent='SELFTEST M1 FAIL'; overlayEl.style.color='#f44'; return; }
+      return window.selftest_M2(game, testOverlay).then(m2 => {
+        if (!m2) { overlayEl.textContent='SELFTEST M2 FAIL'; overlayEl.style.color='#f44'; return; }
+        return window.selftest_M3(game, testOverlay).then(m3 => {
+          if (!m3) { overlayEl.textContent='SELFTEST M3 FAIL'; overlayEl.style.color='#f44'; return; }
+          return window.selftest_M4(game, testOverlay).then(m4 => {
+            if (m4) { overlayEl.textContent='SELFTEST M1+M2+M3+M4'; }
+            else { overlayEl.textContent='SELFTEST M4 FAIL'; overlayEl.style.color='#f44'; return; }
+            return window.selftest_POLISH(game, testOverlay).then(polish => {
+              if (polish) { overlayEl.textContent='SELFTEST M1+M2+M3+M4+POLISH PASS'; overlayEl.style.color='#0f0'; }
+              else { overlayEl.textContent='SELFTEST POLISH FAIL'; overlayEl.style.color='#f44'; }
+            });
+          });
+        });
+      });
+    });
+  }
+});
+</script>
+</body>
+</html>
