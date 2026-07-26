@@ -1,6 +1,12 @@
-cute-fart.mp3
-Source: Mixkit — "Cartoon fart sound"
-URL: https://mixkit.co/free-sound-effects/fart/
-License: Mixkit Sound Effects Free License
-  Free for commercial and non-commercial use.
+Fart SFX pack (trimmed short toots)
+Source: Mixkit free sound effects — https://mixkit.co/free-sound-effects/fart/
+License: Mixkit Sound Effects Free License (commercial & personal OK)
   https://mixkit.co/license/#sfxFree
+
+Files (Mixkit preview IDs):
+  fart-a.mp3  — Funny cartoon fast splat (2889)
+  fart-b.mp3  — Cartoon fart sound (2891)
+  fart-c.mp3  — Cartoon quick splat (2890)
+  fart-d.mp3  — mixkit 3056
+  fart-e.mp3  — mixkit 3041
+  cute-fart.mp3 — alias of fart-b (compat)

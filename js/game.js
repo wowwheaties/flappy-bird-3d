@@ -28,7 +28,8 @@
   let bestScore = parseInt(localStorage.getItem('flappy3d_best') || '0', 10);
   let muted = localStorage.getItem('flappy3d_muted') === '1';
   let audioCtx = null;            // Web Audio API context
-  let fartBuf = null;               // HTMLAudioElement template for real fart SFX
+  let fartPool = null;              // array of HTMLAudioElement templates
+  let lastFartIdx = -1;             // avoid repeating same sample
 
   function getAudioContext() {
     if (!audioCtx) {
@@ -54,36 +55,59 @@
     } catch (e) { /* no-op */ }
   }
 
+  let fartPool = null; // array of HTMLAudioElement templates
+  let lastFartIdx = -1;
+
   function ensureFartAudio() {
-    if (fartBuf) return fartBuf;
-    try {
-      const a = new Audio();
-      // prefer mp3; ogg if browser likes it
-      if (a.canPlayType('audio/mpeg')) a.src = 'assets/sfx/cute-fart.mp3';
-      else a.src = 'assets/sfx/cute-fart.ogg';
-      a.preload = 'auto';
-      a.volume = 0.7;
-      fartBuf = a;
-    } catch (e) { fartBuf = null; }
-    return fartBuf;
+    if (fartPool && fartPool.length) return fartPool;
+    fartPool = [];
+    const names = ['fart-a', 'fart-b', 'fart-c', 'fart-d', 'fart-e'];
+    const preferMp3 = (function () {
+      try { return !!(new Audio().canPlayType('audio/mpeg')); } catch (e) { return true; }
+    })();
+    for (let i = 0; i < names.length; i++) {
+      try {
+        const a = new Audio();
+        a.src = preferMp3
+          ? ('assets/sfx/' + names[i] + '.mp3')
+          : ('assets/sfx/' + names[i] + '.ogg');
+        a.preload = 'auto';
+        a.volume = 0.7;
+        fartPool.push(a);
+      } catch (e) { /* skip */ }
+    }
+    // compat fallback single file
+    if (!fartPool.length) {
+      try {
+        const a = new Audio();
+        a.src = preferMp3 ? 'assets/sfx/cute-fart.mp3' : 'assets/sfx/cute-fart.ogg';
+        a.preload = 'auto';
+        fartPool.push(a);
+      } catch (e) {}
+    }
+    return fartPool;
   }
 
   function sfxFart() {
     if (muted) return;
-    // Real sample (overlap-safe via clone)
     try {
-      const base = ensureFartAudio();
-      if (base && base.src) {
-        const a = base.cloneNode();
-        a.volume = 0.65 + Math.random() * 0.15;
-        a.playbackRate = 0.95 + Math.random() * 0.15; // slight cute variation
+      const pool = ensureFartAudio();
+      if (pool && pool.length) {
+        // pick random, avoid repeating last if possible
+        let idx = Math.floor(Math.random() * pool.length);
+        if (pool.length > 1 && idx === lastFartIdx) {
+          idx = (idx + 1 + Math.floor(Math.random() * (pool.length - 1))) % pool.length;
+        }
+        lastFartIdx = idx;
+        const a = pool[idx].cloneNode();
+        a.volume = 0.55 + Math.random() * 0.3;
+        a.playbackRate = 0.88 + Math.random() * 0.28; // wider cute pitch variety
         const p = a.play();
-        if (p && p.catch) p.catch(function () { /* autoplay block until gesture */ });
+        if (p && p.catch) p.catch(function () {});
         return;
       }
     } catch (e) { /* fall through */ }
-    // Fallback synthetic if file missing
-    playTone(120, 0.15, 'sawtooth', 0.2);
+    playTone(100 + Math.random() * 50, 0.12 + Math.random() * 0.08, 'sawtooth', 0.2);
   }
   function sfxFlap()   { sfxFart(); }
   function sfxScore()  { if (!muted) playTone(900, 0.12, 'square', 0.2); }
